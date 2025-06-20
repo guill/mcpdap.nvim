@@ -100,6 +100,58 @@ local function cleanup_output_storage(session_id)
   end
 end
 
+-- Helper function to get code context around a specific line
+local function get_code_context(file_path, target_line, context_lines)
+  context_lines = context_lines or 5
+
+  if not file_path or file_path == "<unknown>" then
+    return nil, "Unknown file path"
+  end
+
+  -- Check if file exists
+  if vim.fn.filereadable(file_path) == 0 then
+    return nil, "File not readable: " .. file_path
+  end
+
+  local lines = {}
+  local file = io.open(file_path, "r")
+  if not file then
+    return nil, "Could not open file: " .. file_path
+  end
+
+  local line_num = 1
+  for line in file:lines() do
+    lines[line_num] = line
+    line_num = line_num + 1
+  end
+  file:close()
+
+  local total_lines = #lines
+  if target_line < 1 or target_line > total_lines then
+    return nil, "Line " .. target_line .. " is out of range (1-" .. total_lines .. ")"
+  end
+
+  -- Calculate range
+  local start_line = math.max(1, target_line - context_lines)
+  local end_line = math.min(total_lines, target_line + context_lines)
+
+  -- Build context output
+  local context_output = {}
+  table.insert(context_output, "\nCode context around breakpoint:")
+  table.insert(context_output, string.rep("-", 60))
+
+  for i = start_line, end_line do
+    local line_content = lines[i] or ""
+    local line_indicator = (i == target_line) and "> " or "  "
+    local formatted_line = string.format("%s%4d │ %s", line_indicator, i, line_content)
+    table.insert(context_output, formatted_line)
+  end
+
+  table.insert(context_output, string.rep("-", 60))
+
+  return table.concat(context_output, "\n")
+end
+
 -- Shared wait until paused functionality
 local function wait_until_paused_impl(timeout_ms, check_interval_ms)
   timeout_ms = timeout_ms or 30000
@@ -119,6 +171,8 @@ local function wait_until_paused_impl(timeout_ms, check_interval_ms)
   local pause_detected = false
   local pause_reason = "unknown"
   local pause_location = nil
+  local location_updated = false
+  local pause_start_time = nil
 
   -- Set up a temporary listener for stopped events
   local listener_key = "wait_until_paused_" .. tostring(math.random(1000000))
@@ -126,17 +180,56 @@ local function wait_until_paused_impl(timeout_ms, check_interval_ms)
   dap.listeners.after['event_stopped'][listener_key] = function(session_obj, body)
     pause_detected = true
     pause_reason = body.reason or "unknown"
+    pause_start_time = vim.fn.localtime() * 1000 -- milliseconds
 
-    -- Get current location if available - be defensive about session structure
-    if session_obj and session_obj.current_frame then
-      local frame = session_obj.current_frame
-      if frame then
-        pause_location = {
-          file = (frame.source and frame.source.path) or "<unknown>",
-          line = frame.line or 0,
-          function_name = frame.name or "<unknown>"
-        }
+    -- Get the thread ID from the stopped event
+    local thread_id = body.threadId
+    if not thread_id then
+      -- Fallback to the first available thread
+      if session_obj.threads then
+        for tid, _ in pairs(session_obj.threads) do
+          thread_id = tid
+          break
+        end
       end
+    end
+
+    -- Request stack trace to get current location
+    if thread_id and session_obj.request then
+      session_obj:request('stackTrace', {
+        threadId = thread_id,
+        startFrame = 0,
+        levels = 1 -- We only need the top frame
+      }, function(err, result)
+        if not err and result and result.stackFrames and #result.stackFrames > 0 then
+          local frame = result.stackFrames[1]
+          pause_location = {
+            file = (frame.source and frame.source.path) or "<unknown>",
+            line = frame.line or 0,
+            function_name = frame.name or "<unknown>"
+          }
+        else
+          -- Fallback if stack trace request fails
+          pause_location = {
+            file = "<unknown>",
+            line = 0,
+            function_name = "<unknown>"
+          }
+        end
+        location_updated = true
+
+        -- Focus the frame after getting location
+        pcall(dap.focus_frame)
+      end)
+    else
+      -- No thread ID available, set default location
+      pause_location = {
+        file = "<unknown>",
+        line = 0,
+        function_name = "<unknown>"
+      }
+      location_updated = true
+      pcall(dap.focus_frame)
     end
 
     -- Return true to remove this listener after first use
@@ -161,11 +254,6 @@ local function wait_until_paused_impl(timeout_ms, check_interval_ms)
 
   -- Wait for the pause condition with vim.wait
   local success = vim.wait(timeout_ms, function()
-    -- Check if we received a stopped event
-    if pause_detected then
-      return true
-    end
-
     -- Check if session was terminated
     if termination_detected then
       return true
@@ -173,7 +261,7 @@ local function wait_until_paused_impl(timeout_ms, check_interval_ms)
 
     local ok_dap, current_dap = pcall(require, 'dap')
     if not ok_dap then
-      return false, "nvim-dap not available"
+      return false
     end
 
     -- Check if session is no longer active
@@ -182,6 +270,29 @@ local function wait_until_paused_impl(timeout_ms, check_interval_ms)
       termination_detected = true
       termination_reason = "session ended"
       return true
+    end
+
+    -- Check if we received a stopped event AND location has been updated
+    if pause_detected and location_updated then
+      return true
+    end
+
+    -- Fallback: if we've been paused for more than 2 seconds but location
+    -- update hasn't completed, proceed anyway to avoid hanging
+    if pause_detected then
+      local time_since_pause = vim.fn.localtime() * 1000 - (pause_start_time or 0)
+      if time_since_pause > 2000 then -- 2 second timeout for location update
+        if not location_updated then
+          -- Set fallback location and proceed
+          pause_location = {
+            file = "<unknown>",
+            line = 0,
+            function_name = "<unknown>"
+          }
+          location_updated = true
+        end
+        return true
+      end
     end
 
     return false
@@ -209,16 +320,24 @@ local function wait_until_paused_impl(timeout_ms, check_interval_ms)
         pause_location.file,
         pause_location.line or 0,
         pause_location.function_name)
+
+      -- Add code context around the pause location
+      local code_context, context_err = get_code_context(pause_location.file, pause_location.line, 5)
+      if code_context then
+        output = output .. code_context
+      elseif context_err then
+        output = output .. "\n\nNote: Could not retrieve code context: " .. context_err
+      end
     end
 
     -- Get current status for additional info
     local ok_status, status_dap = pcall(require, 'dap')
     if ok_status then
-    local current_status = status_dap.status()
+      local current_status = status_dap.status()
       if current_status and current_status ~= "" then
-      output = output .. "\nStatus: " .. current_status
+        output = output .. "\nStatus: " .. current_status
+      end
     end
-  end
 
     return true, output
   end
@@ -1100,7 +1219,7 @@ function M.setup()
       session:request("evaluate", {
         expression = expression,
         context = req.params.context or "hover",
-        frameId = req.params.frame_id
+        frameId = req.params.frame_id or session.current_frame and session.current_frame.id or nil
       }, function(eval_err, result)
         eval_error = eval_err
         eval_result = result
@@ -1255,6 +1374,7 @@ function M.setup()
     end
   })
 
+  --[[
   mcphub.add_resource("dap", {
     name = "variables",
     uri = "dap://variables",
@@ -1282,6 +1402,7 @@ function M.setup()
       return res:text(vim.inspect(info), "text/plain"):send()
     end
   })
+  ]]
 
   mcphub.add_tool("dap", {
     name = "get_program_output",
@@ -1374,11 +1495,11 @@ function M.setup()
       end
 
       -- Be defensive about session structure
-      if not session.current_frame then
+      local current_frame = session.current_frame
+      if not current_frame then
         return res:text("No current execution location available"):send()
       end
 
-      local current_frame = session.current_frame
       local location = {
         file = (current_frame.source and current_frame.source.path) or "<unknown>",
         line = current_frame.line or 0,
@@ -1388,6 +1509,14 @@ function M.setup()
 
       local output = string.format("Currently stopped at:\n  File: %s\n  Line: %d\n  Column: %d\n  Function: %s",
         location.file, location.line, location.column, location.function_name)
+
+      -- Add code context around the current location
+      local code_context, context_err = get_code_context(location.file, location.line, 5)
+      if code_context then
+        output = output .. code_context
+      elseif context_err then
+        output = output .. "\n\nNote: Could not retrieve code context: " .. context_err
+      end
 
       return res:text(output):send()
     end
