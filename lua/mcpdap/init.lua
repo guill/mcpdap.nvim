@@ -541,7 +541,7 @@ function M.setup()
   end
 
   -- Session Management Tools
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "continue",
     description = "Continue execution of a paused debug session (requires active session)",
     inputSchema = {
@@ -586,7 +586,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "run",
     description =
     "Start a new debug session with specified configuration. Note that you may want to set breakpoints before starting debugging (since the program may finish before you can set them otherwise).",
@@ -720,7 +720,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "terminate",
     description = "Terminate the current debug session",
     handler = function(req, res)
@@ -738,7 +738,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "disconnect",
     description = "Disconnect from the debug adapter",
     inputSchema = {
@@ -772,7 +772,7 @@ function M.setup()
 
   -- Breakpoint Management Tools
   --[[
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "toggle_breakpoint",
     description = "Toggle a breakpoint at the current line or specified line",
     inputSchema = {
@@ -820,7 +820,7 @@ function M.setup()
   })
   ]]
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "set_breakpoint_at",
     description = "Set a breakpoint at a specific file and line number",
     inputSchema = {
@@ -876,7 +876,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "clear_breakpoints",
     description = "Clear all breakpoints",
     handler = function(req, res)
@@ -889,7 +889,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "list_breakpoints",
     description = "List all breakpoints and log points",
     handler = function(req, res)
@@ -902,7 +902,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "get_breakpoints",
     description = "Get detailed information about all breakpoints and log points",
     handler = function(req, res)
@@ -954,7 +954,7 @@ function M.setup()
   })
 
   -- Step Control Tools
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "step_over",
     description = "Step over the current line",
     inputSchema = {
@@ -997,7 +997,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "step_into",
     description = "Step into the current function or method",
     inputSchema = {
@@ -1047,7 +1047,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "step_out",
     description = "Step out of the current function or method",
     inputSchema = {
@@ -1090,7 +1090,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "run_to",
     description = "Run execution to a specific file and line number",
     inputSchema = {
@@ -1151,7 +1151,7 @@ function M.setup()
   })
 
   -- Information Gathering Tools
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "status",
     description = "Get the current debug session status",
     handler = function(req, res)
@@ -1172,7 +1172,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "evaluate",
     description = "Evaluate an expression in the current debug context",
     inputSchema = {
@@ -1258,7 +1258,7 @@ function M.setup()
 
   -- REPL Tools
   --[[
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "repl_open",
     description = "Open the debug REPL console",
     handler = function(req, res)
@@ -1274,7 +1274,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "repl_close",
     description = "Close the debug REPL console",
     handler = function(req, res)
@@ -1290,7 +1290,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "repl_toggle",
     description = "Toggle the debug REPL console",
     handler = function(req, res)
@@ -1308,7 +1308,7 @@ function M.setup()
   ]]
 
   -- Resources for debugging information
-  mcphub.add_resource("dap", {
+  mcphub.add_resource("debugger", {
     name = "session_info",
     uri = "dap://session",
     description = "Current debug session information",
@@ -1330,7 +1330,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_resource("dap", {
+  mcphub.add_resource("debugger", {
     name = "stack_trace",
     uri = "dap://stack",
     description = "Current stack trace information",
@@ -1375,7 +1375,7 @@ function M.setup()
   })
 
   --[[
-  mcphub.add_resource("dap", {
+  mcphub.add_resource("debugger", {
     name = "variables",
     uri = "dap://variables",
     description = "Current scope variables",
@@ -1404,7 +1404,7 @@ function M.setup()
   })
   ]]
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "get_program_output",
     description = "Get the output from the running/debugged program",
     inputSchema = {
@@ -1485,7 +1485,7 @@ function M.setup()
       return res:text(header .. result):send()
     end
   })
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "get_current_location",
     description = "Get the current execution location in the debugger",
     handler = function(req, res)
@@ -1522,7 +1522,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "wait_until_paused",
     description =
     "Wait until the debugger is paused (breakpoint hit, step completed, etc.). This tool blocks until the debugger stops or times out.",
@@ -1559,7 +1559,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_tool("dap", {
+  mcphub.add_tool("debugger", {
     name = "remove_breakpoint_at",
     description = "Remove a specific breakpoint at file and line",
     inputSchema = {
@@ -1611,7 +1611,7 @@ function M.setup()
   })
 
   -- Add output-related resources
-  mcphub.add_resource("dap", {
+  mcphub.add_resource("debugger", {
     name = "program_output",
     uri = "dap://output",
     description = "Current program output (all categories combined)",
@@ -1642,7 +1642,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_resource_template("dap", {
+  mcphub.add_resource_template("debugger", {
     name = "output_by_category",
     uriTemplate = "dap://output/{category}",
     description = "Program output filtered by category (stdout, stderr, console)",
@@ -1676,7 +1676,7 @@ function M.setup()
     end
   })
 
-  mcphub.add_resource_template("dap", {
+  mcphub.add_resource_template("debugger", {
     name = "output_recent",
     uriTemplate = "dap://output/recent/{lines}",
     description = "Recent program output (specify number of lines)",
@@ -1717,7 +1717,7 @@ function M.setup()
   })
 
   -- Add breakpoints resource
-  mcphub.add_resource("dap", {
+  mcphub.add_resource("debugger", {
     name = "breakpoints",
     uri = "mcpdap://breakpoints",
     description = "List all currently set breakpoints in JSON format",
